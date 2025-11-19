@@ -48,14 +48,7 @@ pip install -r requirements.txt
 python inference.py --test_data_path sample_test_phase_1
 ```
 
-**Test folder structure:**
-```
-sample_test_phase_1/
-├── known_reviewers_known_movies.csv
-├── known_reviewers_unknown_movies.csv
-├── unknown_reviewers_known_movies.csv
-└── movie_mapper.csv
-```
+
 
 ### 5. Check Output
 
@@ -65,13 +58,7 @@ Results saved to `output/` folder:
 
 ---
 
-## System Requirements
 
-- **Python:** 3.8+
-- **RAM:** 2GB minimum
-- **CPU:** Any modern CPU (no GPU required)
-
----
 
 ## Inference Parameters
 
