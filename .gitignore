@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+.venv
+.env
+
+# Dataset (too large for GitHub)
+data/
+
+# Output files
+output/
+*.log
+
+# Jupyter checkpoints (but keep notebooks)
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keep these important files
+!models/*.pkl
+!notebooks/*.ipynb
