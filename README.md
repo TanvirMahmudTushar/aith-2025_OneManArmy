@@ -6,14 +6,13 @@
 
 ## Project Overview
 
-This project implements a **SVD (Singular Value Decomposition) collaborative filtering** recommendation system for the AITH 2025 competition.
-
+This project implements a **SVD (Singular Value Decomposition) collaborative filtering** recommendation system for the AITH 2025 competition. The model achieves **Recall@5: 0.3821**, runs on **CPU**, and completes inference in under 5 seconds.
 
 ---
 
+## Evaluation Instructions (IMPORTANT)
 
-
-## Quick Start for Evaluation
+**Follow these exact steps to evaluate:**
 
 ### 1. Clone Repository
 
@@ -22,7 +21,7 @@ git clone https://github.com/TanvirMahmudTushar/aith-2025-movie-recommendation.g
 cd aith-2025-movie-recommendation
 ```
 
-### 2. Create Virtual Environment
+### 2. Create Python Virtual Environment
 
 **IMPORTANT:** Use Python venv (NOT Anaconda/conda)
 
@@ -42,23 +41,20 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Run Inference
+### 4. Execute Inference
 
+**Method 1: With test data folder path (Recommended)**
 ```bash
 python inference.py --test_data_path sample_test_phase_1
 ```
 
-
-
-### 5. Check Output
-
-Results saved to `output/` folder:
-- `predictions.csv` - Predicted ratings
-- `metrics.json` - Performance metrics
+**Method 2: Using default path**
+```bash
+python inference.py
+```
+(Default path: `sample_test_phase_1`)
 
 ---
-
-
 
 ## Inference Parameters
 
@@ -66,9 +62,37 @@ Results saved to `output/` folder:
 python inference.py --test_data_path <folder_path>
 ```
 
-**Optional parameters:**
-- `--model_path` - Path to model file (default: `models/recommendation_model.pkl`)
-- `--output_dir` - Output directory (default: `output`)
+**Arguments:**
+- `--test_data_path`: Path to folder containing test CSV files (default: `sample_test_phase_1`)
+- `--model_path`: Path to model file (default: `Resources/recommendation_model.pkl`)
+- `--output_dir`: Output directory (default: `output`)
+
+**Example:**
+```bash
+python inference.py --test_data_path hidden_test_phase_1 --output_dir output
+```
+
+---
+
+## Output Location
+
+All inference results are saved to the **`output/`** folder:
+- **`output/predictions.csv`** - Predicted ratings (userId, movieId, prediction)
+- **Console output** - Recall@5, Recall@3, Recall@1, RMSE, MAE
+
+---
+
+## Alternative: Shell Scripts
+
+For convenience, you can also use:
+
+```bash
+bash setup.sh    # Setup environment
+bash run.sh      # Run inference (calls main.py)
+bash test.sh     # Run inference (calls main.py)
+```
+
+**Note:** For official evaluation, use `python inference.py` as specified above.
 
 ---
 

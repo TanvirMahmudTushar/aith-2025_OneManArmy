@@ -1,0 +1,2 @@
+# Output folder for inference results
+# predictions.csv will be saved here after running inference.py
