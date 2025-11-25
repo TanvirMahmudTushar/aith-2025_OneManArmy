@@ -42,15 +42,17 @@ pip install scikit-surprise
 
 **Test Data Path:** Pass the test data folder path as a command-line argument using `--test_data_path`.
 
+**Important:** A publicly available subset of test data is included in `Dataset/aith-dataset/sample_test_phase_1/`. This has the exact same format as the hidden test dataset. Use this to test your setup before submission.
+
 ```bash
 python inference.py --test_data_path Dataset/aith-dataset/sample_test_phase_1 --output_dir output
 ```
 
 **Arguments:**
-- `--test_data_path`: Path to test data folder (required)
+- `--test_data_path`: Path to test data folder (required) - Pass the folder path as a command-line argument
 - `--model_path`: Path to model file (default: `Resources/hybrid_model.pkl`)
-- `--output_dir`: Output directory (default: `output`)
-- `--download_model_url`: URL to download model if local file doesn't exist (optional)
+- `--output_dir`: Output directory (default: `output`) - All inference outputs are saved here
+- `--download_model_url`: URL to download model if local file doesn't exist (optional, for large model files)
 
 **Test Data Format:**
 The test data folder must contain:
@@ -59,7 +61,7 @@ The test data folder must contain:
 - `unknown_reviewers_known_movies.csv`
 - `movie_mapper.csv`
 
-**Output Folder:** All results are saved to the specified `--output_dir` folder:
+**Output Folder:** All inference outputs (predictions, metrics) are saved to the specified `--output_dir` folder:
 - `output/predictions.csv` - Top 5 movie recommendations per user
 - `output/metrics.json` - Recall@1, Recall@3, Recall@5 metrics
 
@@ -70,8 +72,8 @@ If `scikit-surprise` is not available, the system automatically uses content-bas
 
 ## Additional Information
 
-- **CPU Compatible:** Model runs on CPU (no GPU required)
-- **Model File:** Included in repository (`Resources/hybrid_model.pkl`, 19.30 MB)
+- **CPU Compatible:** Model runs on CPU (no GPU required). The model was trained and converted to CPU-compatible form. Unit testing has been performed to verify functionality.
+- **Model File:** Included in repository (`Resources/hybrid_model.pkl`, 19.30 MB). If the model file is too large for GitHub, use `--download_model_url` to automatically download it.
 - **Runtime:** < 5 seconds for typical test sets
 - **Memory:** < 2GB
 
