@@ -99,163 +99,221 @@ class WinningRecommender:
                 # Try to load the pickle file
                 if SURPRISE_AVAILABLE:
                     # Standard loading if surprise is available
-                    self.model_data = pickle.load(f)
-                else:
-                    # scikit-surprise not available - use monkey-patch to fake the module
-                    print("[WARNING] scikit-surprise not available. Loading model with fallback support...")
-                    
-                    # Create fake surprise module to satisfy pickle's import requirements
-                    import types
-                    import sys
-                    
-                    # Create fake SVD class that handles all pickle operations
-                    class FakeSVD:
-                        def __init__(self, *args, **kwargs):
-                            self._dummy = True
-                            # Store any kwargs to avoid errors
-                            for k, v in kwargs.items():
-                                setattr(self, k, v)
-                        def __getattr__(self, name):
-                            # Return None for any missing attributes
-                            return None
-                        def __setattr__(self, name, value):
-                            # Allow setting any attributes
-                            object.__setattr__(self, name, value)
-                        def __setstate__(self, state):
-                            # Accept any state during unpickling
-                            if isinstance(state, dict):
-                                for k, v in state.items():
-                                    setattr(self, k, v)
-                        def __getstate__(self):
-                            # Return empty state
-                            return {}
-                        def __reduce__(self):
-                            return (FakeSVD, ())
-                        def __reduce_ex__(self, protocol):
-                            return (FakeSVD, ())
-                        def predict(self, *args, **kwargs):
-                            # Dummy predict method
-                            return type('Prediction', (), {'est': 3.5})()
-                        def fit(self, *args, **kwargs):
-                            # Dummy fit method
-                            return self
-                    
-                    # Create fake surprise module
-                    fake_surprise = types.ModuleType('surprise')
-                    fake_surprise.SVD = FakeSVD
-                    fake_surprise.Dataset = type('Dataset', (), {})
-                    fake_surprise.Reader = type('Reader', (), {})
-                    
-                    # Temporarily inject fake module
-                    original_surprise = sys.modules.get('surprise')
-                    sys.modules['surprise'] = fake_surprise
-                    
                     try:
-                        # Now try to load the pickle
                         self.model_data = pickle.load(f)
-                        # Remove the fake SVD model
-                        if 'svd_model' in self.model_data:
-                            svd_model = self.model_data.get('svd_model')
-                            if svd_model is not None:
-                                self.model_data['svd_model'] = None
-                        print("[INFO] Model data loaded successfully (without SVD model).")
-                        print("[INFO] Will use content-based + popularity fallback methods.")
                     except Exception as e:
-                        # If loading still fails, provide helpful error
-                        error_str = str(e).lower()
-                        if 'surprise' in error_str or 'module' in error_str or 'no module named' in error_str:
-                            print(f"\n[ERROR] Model loading failed: {e}")
-                            print("\n[SOLUTION] Please install scikit-surprise:")
-                            print("  pip install scikit-surprise")
-                            print("\nIf installation fails on Linux, install build tools first:")
-                            print("  sudo apt-get update")
-                            print("  sudo apt-get install -y build-essential python3-dev gfortran libatlas-base-dev")
-                            print("  pip install scikit-surprise")
-                            print("\nNote: On most Linux systems, scikit-surprise installs automatically.")
-                            raise RuntimeError(
-                                "Model file requires scikit-surprise. Install with: pip install scikit-surprise"
-                            ) from e
-                        raise
-                    finally:
-                        # Restore original module
-                        if original_surprise is not None:
-                            sys.modules['surprise'] = original_surprise
-                        elif 'surprise' in sys.modules and hasattr(sys.modules['surprise'], '_dummy'):
-                            del sys.modules['surprise']
+                        print(f"[WARNING] Standard pickle load failed: {e}")
+                        print("[INFO] Attempting safe unpickling...")
+                        f.seek(0)  # Reset file pointer
+                        self.model_data = self._safe_unpickle(f)
+                else:
+                    # scikit-surprise not available - use safe unpickler
+                    print("[WARNING] scikit-surprise not available. Using safe unpickling...")
+                    self.model_data = self._safe_unpickle(f)
+                    
+                # Remove SVD model if it's a dummy or if surprise is not available
+                if 'svd_model' in self.model_data:
+                    svd_model = self.model_data.get('svd_model')
+                    if svd_model is not None:
+                        # Check if it's a dummy object or if surprise is unavailable
+                        if not SURPRISE_AVAILABLE or (hasattr(svd_model, '_dummy') and svd_model._dummy):
+                            self.model_data['svd_model'] = None
+                            print("[INFO] SVD model removed (using fallback methods).")
                 
-            # Try to load SVD model (or LightFM if available for backward compatibility)
-            # If scikit-surprise isn't available, model will be None and we'll use fallbacks
-            if SURPRISE_AVAILABLE:
-                try:
-                    self.model = self.model_data.get('svd_model') or self.model_data.get('lightfm_model')
-                    if self.model is not None:
-                        print("[INFO] SVD model loaded successfully.")
-                except Exception as e:
-                    print(f"[WARNING] Could not load SVD model: {e}")
-                    print("[INFO] Will use content-based + popularity fallback methods.")
-                    self.model = None
+                # Ensure model_data is a dict
+                if not isinstance(self.model_data, dict):
+                    print("[WARNING] Model data is not a dict, initializing empty dict.")
+                    self.model_data = {}
+                    
+        except FileNotFoundError:
+            raise
+        except Exception as e:
+            error_str = str(e).lower()
+            if 'surprise' in error_str or 'module' in error_str or 'no module named' in error_str:
+                print(f"\n[ERROR] Model loading failed: {e}")
+                print("\n[INFO] Attempting to continue with minimal model data...")
+                # Initialize with empty dict to allow fallback methods
+                self.model_data = {}
             else:
-                print("[INFO] scikit-surprise not available. Using content-based + popularity methods only.")
+                print(f"[ERROR] Unexpected error loading model: {e}")
+                raise
+    
+    def _safe_unpickle(self, file_handle):
+        """
+        Safely unpickle model file, handling missing surprise classes.
+        Returns a dict with all extractable data, with surprise objects replaced by None.
+        """
+        import types
+        import sys
+        
+        # Create comprehensive fake surprise module
+        class DummySurpriseObject:
+            """Dummy object that accepts any attribute assignment"""
+            def __init__(self, *args, **kwargs):
+                self._dummy = True
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+            def __getattr__(self, name):
+                return None
+            def __setattr__(self, name, value):
+                object.__setattr__(self, name, value)
+            def __setstate__(self, state):
+                if isinstance(state, dict):
+                    for k, v in state.items():
+                        setattr(self, k, v)
+            def __getstate__(self):
+                return {}
+            def __reduce__(self):
+                return (DummySurpriseObject, ())
+            def __reduce_ex__(self, protocol):
+                return (DummySurpriseObject, ())
+        
+        # Create fake surprise module with all common classes
+        fake_surprise = types.ModuleType('surprise')
+        fake_surprise.SVD = DummySurpriseObject
+        fake_surprise.Dataset = DummySurpriseObject
+        fake_surprise.Reader = DummySurpriseObject
+        fake_surprise.prediction_algorithms = types.ModuleType('prediction_algorithms')
+        fake_surprise.prediction_algorithms.matrix_factorization = types.ModuleType('matrix_factorization')
+        fake_surprise.prediction_algorithms.matrix_factorization.SVD = DummySurpriseObject
+        
+        # Inject fake module
+        original_surprise = sys.modules.get('surprise')
+        sys.modules['surprise'] = fake_surprise
+        sys.modules['surprise.prediction_algorithms'] = fake_surprise.prediction_algorithms
+        sys.modules['surprise.prediction_algorithms.matrix_factorization'] = fake_surprise.prediction_algorithms.matrix_factorization
+        
+        try:
+            # Try to load with fake module
+            model_data = pickle.load(file_handle)
+            
+            # If model_data is a dict, clean it up
+            if isinstance(model_data, dict):
+                # Replace any dummy surprise objects with None
+                for key, value in list(model_data.items()):
+                    if hasattr(value, '_dummy') and value._dummy:
+                        model_data[key] = None
+                    elif isinstance(value, dict):
+                        # Recursively clean nested dicts
+                        for k, v in list(value.items()):
+                            if hasattr(v, '_dummy') and v._dummy:
+                                value[k] = None
+                
+                # Ensure svd_model is None if it's a dummy
+                if 'svd_model' in model_data:
+                    svd = model_data.get('svd_model')
+                    if svd is not None and (hasattr(svd, '_dummy') and svd._dummy):
+                        model_data['svd_model'] = None
+                
+                return model_data
+            else:
+                # If not a dict, return empty dict
+                print("[WARNING] Unpickled object is not a dict, using empty dict.")
+                return {}
+                
+        except Exception as e:
+            print(f"[WARNING] Safe unpickling failed: {e}")
+            print("[INFO] Initializing with empty model data - will use fallback methods only.")
+            return {}
+        finally:
+            # Restore original module if it existed
+            if original_surprise is not None:
+                sys.modules['surprise'] = original_surprise
+            elif 'surprise' in sys.modules:
+                # Only remove if we added it
+                if hasattr(sys.modules['surprise'], 'SVD') and hasattr(sys.modules['surprise'].SVD, '_dummy'):
+                    del sys.modules['surprise']
+        
+        # After loading model_data, extract components
+        # Try to load SVD model (or LightFM if available for backward compatibility)
+        # If scikit-surprise isn't available, model will be None and we'll use fallbacks
+        if SURPRISE_AVAILABLE:
+            try:
+                self.model = self.model_data.get('svd_model') or self.model_data.get('lightfm_model')
+                if self.model is not None:
+                    print("[INFO] SVD model loaded successfully.")
+            except Exception as e:
+                print(f"[WARNING] Could not load SVD model: {e}")
+                print("[INFO] Will use content-based + popularity fallback methods.")
                 self.model = None
-            
-            self.model_type = self.model_data.get('model_type', 'svd_hybrid_fixed')
-            
-            # Load mappings
-            self.user_to_idx = self.model_data.get('user_to_idx', {})
-            self.idx_to_user = self.model_data.get('idx_to_user', {})
-            self.item_to_idx = self.model_data.get('item_to_idx', {})
-            self.idx_to_item = self.model_data.get('idx_to_item', {})
-            self.imdb_to_ml = self.model_data.get('imdb_to_ml', {})
-            self.ml_to_imdb = self.model_data.get('ml_to_imdb', {})
-            
-            # Load features
-            self.user_features = self.model_data.get('user_features')
-            self.item_features = self.model_data.get('item_features')
-            # Handle both array and sparse matrix formats
-            item_genre_matrix = self.model_data.get('item_genre_matrix')
-            if item_genre_matrix is not None:
+        else:
+            print("[INFO] scikit-surprise not available. Using content-based + popularity methods only.")
+            self.model = None
+        
+        self.model_type = self.model_data.get('model_type', 'svd_hybrid_fixed')
+        
+        # Ensure model_data is a dict (handle case where unpickling failed)
+        if not isinstance(self.model_data, dict):
+            print("[WARNING] Model data is not a dict, using empty dict.")
+            self.model_data = {}
+        
+        # Load mappings (with safe defaults)
+        self.user_to_idx = self.model_data.get('user_to_idx', {})
+        self.idx_to_user = self.model_data.get('idx_to_user', {})
+        self.item_to_idx = self.model_data.get('item_to_idx', {})
+        self.idx_to_item = self.model_data.get('idx_to_item', {})
+        self.imdb_to_ml = self.model_data.get('imdb_to_ml', {})
+        self.ml_to_imdb = self.model_data.get('ml_to_imdb', {})
+        
+        # Load features (with safe defaults)
+        self.user_features = self.model_data.get('user_features')
+        self.item_features = self.model_data.get('item_features')
+        # Handle both array and sparse matrix formats
+        item_genre_matrix = self.model_data.get('item_genre_matrix')
+        if item_genre_matrix is not None:
+            try:
                 if hasattr(item_genre_matrix, 'toarray'):
                     self.item_genre_matrix = item_genre_matrix.toarray()
                 else:
                     self.item_genre_matrix = np.array(item_genre_matrix)
-            else:
+            except:
                 self.item_genre_matrix = None
-            self.user_genre_prefs = self.model_data.get('user_genre_prefs')
-            self.movie_genres_dict = self.model_data.get('movie_genres_dict', {})
-            self.genres = self.model_data.get('genres', [])
-            self.genre_to_idx = self.model_data.get('genre_to_idx', {})
-            
-            # Load popularity
-            self.movie_popularity = self.model_data.get('movie_popularity', {})
-            self.top_popular_movies = self.model_data.get('top_popular_movies', [])
-            
-            # Load IMDB user profiles (KEY!)
-            self.imdb_user_profiles = self.model_data.get('imdb_user_profiles', {})
-            
-            # Load movie metadata
-            self.movie_metadata = self.model_data.get('movie_metadata', {})
-            self.movie_names = self.model_data.get('movie_names', {})
-            
-            # Load interactions
-            self.interactions = self.model_data.get('interactions')
-            
-            print(f"[INFO] Model loaded successfully!")
-            print(f"[INFO] Model type: {self.model_type}")
-            print(f"[INFO] Users: {len(self.user_to_idx):,}, Items: {len(self.item_to_idx):,}")
-            print(f"[INFO] IMDB user profiles: {len(self.imdb_user_profiles):,}")
-            print(f"[INFO] Movie metadata: {len(self.movie_metadata):,}")
-            
-            # Print performance if available
-            if 'performance' in self.model_data:
-                perf = self.model_data['performance']
-                print(f"[INFO] Training Performance:")
-                for k in [1, 3, 5]:
-                    if f'recall@{k}' in perf:
-                        print(f"  - Recall@{k}: {perf[f'recall@{k}']:.4f}")
-                
-        except Exception as e:
-            print(f"[ERROR] Failed to load model: {e}")
-            raise
+        else:
+            self.item_genre_matrix = None
+        self.user_genre_prefs = self.model_data.get('user_genre_prefs')
+        self.movie_genres_dict = self.model_data.get('movie_genres_dict', {})
+        self.genres = self.model_data.get('genres', [])
+        self.genre_to_idx = self.model_data.get('genre_to_idx', {})
+        
+        # Load popularity (with safe defaults)
+        self.movie_popularity = self.model_data.get('movie_popularity', {})
+        self.top_popular_movies = self.model_data.get('top_popular_movies', [])
+        
+        # Load IMDB user profiles (KEY!)
+        self.imdb_user_profiles = self.model_data.get('imdb_user_profiles', {})
+        
+        # Load movie metadata (with safe defaults)
+        self.movie_metadata = self.model_data.get('movie_metadata', {})
+        self.movie_names = self.model_data.get('movie_names', {})
+        
+        # Load interactions
+        self.interactions = self.model_data.get('interactions')
+        
+        # Check if we have minimal data for fallback methods
+        has_minimal_data = (
+            len(self.imdb_to_ml) > 0 or 
+            len(self.movie_popularity) > 0 or 
+            len(self.movie_metadata) > 0
+        )
+        
+        if not has_minimal_data:
+            print("[WARNING] Model data appears empty. Fallback methods may have limited functionality.")
+        
+        print(f"[INFO] Model loaded successfully!")
+        print(f"[INFO] Model type: {self.model_type}")
+        print(f"[INFO] Users: {len(self.user_to_idx):,}, Items: {len(self.item_to_idx):,}")
+        print(f"[INFO] IMDB user profiles: {len(self.imdb_user_profiles):,}")
+        print(f"[INFO] Movie metadata: {len(self.movie_metadata):,}")
+        if self.model is None:
+            print("[INFO] SVD model not available - using content-based + popularity fallback.")
+        
+        # Print performance if available
+        if 'performance' in self.model_data:
+            perf = self.model_data['performance']
+            print(f"[INFO] Training Performance:")
+            for k in [1, 3, 5]:
+                if f'recall@{k}' in perf:
+                    print(f"  - Recall@{k}: {perf[f'recall@{k}']:.4f}")
     
     def normalize_imdb_link(self, link):
         """Normalize IMDB link format"""
@@ -739,6 +797,24 @@ def run_inference(test_data_path='sample_test_phase_1', model_path='Resources/hy
     return metrics
 
 
+def download_model(url, save_path):
+    """Download model file from URL if it doesn't exist locally"""
+    import urllib.request
+    
+    if os.path.exists(save_path):
+        print(f"[INFO] Model file already exists at {save_path}")
+        return
+    
+    print(f"[INFO] Downloading model from {url}...")
+    try:
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        urllib.request.urlretrieve(url, save_path)
+        print(f"[INFO] Model downloaded successfully to {save_path}")
+    except Exception as e:
+        print(f"[ERROR] Failed to download model: {e}")
+        raise
+
+
 def main():
     """Main inference function"""
     parser = argparse.ArgumentParser(
@@ -762,8 +838,35 @@ def main():
         default='output',
         help='Output directory for predictions (default: output)'
     )
+    parser.add_argument(
+        '--download_model_url',
+        type=str,
+        default=None,
+        help='URL to download model file if local model_path does not exist (optional)'
+    )
     
     args = parser.parse_args()
+    
+    # Check if model exists, download if URL provided
+    if not os.path.exists(args.model_path):
+        if args.download_model_url:
+            download_model(args.download_model_url, args.model_path)
+        else:
+            # Try fallback paths
+            fallback_paths = [
+                os.path.join(os.path.dirname(__file__), '..', args.model_path),
+                os.path.join(os.path.dirname(__file__), '..', 'Resources', 'hybrid_model.pkl'),
+            ]
+            found = False
+            for fp in fallback_paths:
+                if os.path.exists(fp):
+                    args.model_path = fp
+                    found = True
+                    break
+            if not found:
+                print(f"[ERROR] Model file not found at {args.model_path}")
+                print("[INFO] If you have a model URL, use --download_model_url to download it.")
+                raise FileNotFoundError(f"Model not found: {args.model_path}")
     
     run_inference(
         test_data_path=args.test_data_path,
