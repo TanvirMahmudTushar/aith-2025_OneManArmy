@@ -40,19 +40,14 @@ pip install scikit-surprise
 
 ### 4. Execute Inference
 
-**Test Data Path:** Pass the test data folder path as a command-line argument using `--test_data_path`.
-
-**Important:** A publicly available subset of test data is included in `Dataset/aith-dataset/sample_test_phase_1/`. This has the exact same format as the hidden test dataset. Use this to test your setup before submission.
-
 ```bash
 python inference.py --test_data_path Dataset/aith-dataset/sample_test_phase_1 --output_dir output
 ```
 
 **Arguments:**
-- `--test_data_path`: Path to test data folder (required) - Pass the folder path as a command-line argument
+- `--test_data_path`: Path to test data folder (required)
 - `--model_path`: Path to model file (default: `Resources/hybrid_model.pkl`)
-- `--output_dir`: Output directory (default: `output`) - All inference outputs are saved here
-- `--download_model_url`: URL to download model if local file doesn't exist (optional, for large model files)
+- `--output_dir`: Output directory (default: `output`)
 
 **Test Data Format:**
 The test data folder must contain:
@@ -61,12 +56,9 @@ The test data folder must contain:
 - `unknown_reviewers_known_movies.csv`
 - `movie_mapper.csv`
 
-**Output Folder:** All inference outputs (predictions, metrics) are saved to the specified `--output_dir` folder:
-- `output/predictions.csv` - Top 5 movie recommendations per user
-- `output/metrics.json` - Recall@1, Recall@3, Recall@5 metrics
-
-**Fallback Behavior:**
-If `scikit-surprise` is not available, the system automatically uses content-based filtering and popularity-based fallback methods. The model file will be loaded without the SVD component, and predictions will still be generated.
+**Output Files:**
+- `output/predictions.csv`
+- `output/metrics.json`
 
 ---
 

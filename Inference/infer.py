@@ -176,12 +176,16 @@ class WinningRecommender:
         fake_surprise.prediction_algorithms = types.ModuleType('prediction_algorithms')
         fake_surprise.prediction_algorithms.matrix_factorization = types.ModuleType('matrix_factorization')
         fake_surprise.prediction_algorithms.matrix_factorization.SVD = DummySurpriseObject
+        # Add trainset module (needed for unpickling)
+        fake_surprise.trainset = types.ModuleType('trainset')
+        fake_surprise.trainset.Trainset = DummySurpriseObject
         
         # Inject fake module
         original_surprise = sys.modules.get('surprise')
         sys.modules['surprise'] = fake_surprise
         sys.modules['surprise.prediction_algorithms'] = fake_surprise.prediction_algorithms
         sys.modules['surprise.prediction_algorithms.matrix_factorization'] = fake_surprise.prediction_algorithms.matrix_factorization
+        sys.modules['surprise.trainset'] = fake_surprise.trainset
         
         try:
             # Try to load with fake module
@@ -275,6 +279,12 @@ class WinningRecommender:
         self.genres = self.model_data.get('genres', [])
         self.genre_to_idx = self.model_data.get('genre_to_idx', {})
         
+        # Ensure genres is never empty to prevent division by zero
+        if not self.genres or len(self.genres) == 0:
+            print("[WARNING] No genres found in model data. Using empty genre list - fallback methods will use popularity only.")
+            self.genres = []
+            self.genre_to_idx = {}
+        
         # Load popularity (with safe defaults)
         self.movie_popularity = self.model_data.get('movie_popularity', {})
         self.top_popular_movies = self.model_data.get('top_popular_movies', [])
@@ -364,6 +374,9 @@ class WinningRecommender:
         if user_name not in self.imdb_user_profiles:
             return None
         
+        if len(self.genres) == 0:
+            return None
+        
         profile = self.imdb_user_profiles[user_name]
         movies_reviewed = profile.get('movies_reviewed', [])
         ratings = profile.get('ratings', [])
@@ -386,7 +399,10 @@ class WinningRecommender:
                     genre_weights += movie_genres * weight
                     genre_counts += movie_genres
         
-        # Normalize
+        # Normalize (handle empty genres to prevent division by zero)
+        if len(self.genres) == 0:
+            return None
+        
         with np.errstate(divide='ignore', invalid='ignore'):
             prefs = np.where(genre_counts > 0, genre_weights / genre_counts, 1.0/len(self.genres))
         
@@ -400,7 +416,10 @@ class WinningRecommender:
             user_history: List of (imdb_link, ranking) tuples
         """
         if not user_history:
-            return np.ones(len(self.genres)) / len(self.genres) if self.genres else None
+            return np.ones(len(self.genres)) / len(self.genres) if (self.genres and len(self.genres) > 0) else None
+        
+        if len(self.genres) == 0:
+            return None
         
         genre_weights = np.zeros(len(self.genres))
         genre_counts = np.zeros(len(self.genres))
@@ -416,7 +435,10 @@ class WinningRecommender:
                     genre_weights += movie_genres * weight
                     genre_counts += movie_genres
         
-        # Normalize
+        # Normalize (handle empty genres to prevent division by zero)
+        if len(self.genres) == 0:
+            return None
+        
         with np.errstate(divide='ignore', invalid='ignore'):
             prefs = np.where(genre_counts > 0, genre_weights / genre_counts, 1.0/len(self.genres))
         
@@ -523,8 +545,8 @@ class WinningRecommender:
         if user_genre_prefs is None and user_history:
             user_genre_prefs = self.get_user_genre_prefs_from_test_history(user_history)
         
-        # Priority 3: Default uniform preferences
-        if user_genre_prefs is None and self.genres:
+        # Priority 3: Default uniform preferences (only if genres exist)
+        if user_genre_prefs is None and self.genres and len(self.genres) > 0:
             user_genre_prefs = np.ones(len(self.genres)) / len(self.genres)
         
         if is_known_movie:
@@ -565,7 +587,7 @@ class WinningRecommender:
                 try:
                     import ast
                     movie_genres = ast.literal_eval(genre_str)
-                    if isinstance(movie_genres, list) and user_genre_prefs is not None:
+                    if isinstance(movie_genres, list) and user_genre_prefs is not None and len(self.genres) > 0:
                         # Calculate similarity
                         genre_vec = np.zeros(len(self.genres))
                         for g in movie_genres:
