@@ -19,11 +19,18 @@ env/
 .env
 
 # Dataset (too large for GitHub)
-data/
+# Note: Dataset/ folder structure is kept, but large files should not be committed
+Dataset/aith-dataset/
+Dataset/features/
+Dataset/mappings/
+Dataset/merged/
 
 # Output files
 output/
 *.log
+*.aux
+*.out
+*.tex
 
 # Jupyter checkpoints (but keep notebooks)
 .ipynb_checkpoints/
@@ -40,5 +47,7 @@ output/
 Thumbs.db
 
 # Keep these important files
-!models/*.pkl
-!notebooks/*.ipynb
+!Resources/*.pkl
+!references/*.ipynb
+!documentation/*.pdf
+!documentation/*.png

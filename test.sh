@@ -8,5 +8,6 @@ elif [ -f "venv/Scripts/activate" ]; then
 fi
 
 echo "Starting inference..."
-python main.py
+echo "Using sample test data: Dataset/aith-dataset/sample_test_phase_1"
+python inference.py --test_data_path Dataset/aith-dataset/sample_test_phase_1
 echo "Inference complete. Results in output/"

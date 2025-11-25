@@ -1,18 +1,4 @@
-"""
-AITH 2025 - Movie Recommendation Inference (WINNING VERSION)
-Team: OneManArmy
 
-This module performs inference using the trained hybrid LightFM model.
-KEY IMPROVEMENT: Uses IMDB user profiles for personalized cold-start handling.
-
-Handles all three test scenarios:
-1. Known users + Known movies -> Collaborative + Content
-2. Known users + Unknown movies -> User profile + Content similarity  
-3. Unknown users + Known movies -> Popularity + Content
-
-Usage:
-    python inference.py --test_data_path sample_test_phase_1
-"""
 
 import os
 import sys
@@ -122,11 +108,21 @@ class WinningRecommender:
                                 return None
                         return DummySurpriseObject
                     # Otherwise, use the standard import
-                    return super().find_class(module, name)
+                    try:
+                        return super().find_class(module, name)
+                    except (ModuleNotFoundError, ImportError) as e:
+                        if 'surprise' in str(e).lower() or module.startswith('surprise'):
+                            # Return dummy object for surprise modules
+                            class DummySurpriseObject:
+                                def __init__(self, *args, **kwargs):
+                                    pass
+                                def __getattr__(self, name):
+                                    return None
+                            return DummySurpriseObject
+                        raise
             
             with open(self.model_path, 'rb') as f:
                 # Try to load the pickle file
-                # If scikit-surprise isn't available, use safe unpickler
                 if SURPRISE_AVAILABLE:
                     # Standard loading if surprise is available
                     self.model_data = pickle.load(f)
@@ -134,9 +130,15 @@ class WinningRecommender:
                     # Use safe unpickler that handles missing surprise module
                     print("[WARNING] scikit-surprise not available. Loading model with fallback support...")
                     unpickler = SafeUnpickler(f)
-                    self.model_data = unpickler.load()
-                    print("[INFO] Model data loaded, but SVD predictions will be unavailable.")
-                    print("[INFO] Will use content-based + popularity fallback methods.")
+                    try:
+                        self.model_data = unpickler.load()
+                        print("[INFO] Model data loaded, but SVD predictions will be unavailable.")
+                        print("[INFO] Will use content-based + popularity fallback methods.")
+                    except Exception as e:
+                        print(f"[ERROR] Failed to load model: {e}")
+                        # Try to set svd_model to None if it exists in the data
+                        # This is a fallback - the model might still be partially loaded
+                        raise
                 
             # Try to load SVD model (or LightFM if available for backward compatibility)
             # If scikit-surprise isn't available, model will be None and we'll use fallbacks
@@ -702,8 +704,8 @@ def main():
     parser.add_argument(
         '--test_data_path',
         type=str,
-        default='sample_test_phase_1',
-        help='Path to test data folder (default: sample_test_phase_1)'
+        default='Dataset/aith-dataset/sample_test_phase_1',
+        help='Path to test data folder (default: Dataset/aith-dataset/sample_test_phase_1)'
     )
     parser.add_argument(
         '--model_path',
