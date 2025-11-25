@@ -95,50 +95,93 @@ class WinningRecommender:
                 raise FileNotFoundError(f"Model not found: {self.model_path}")
         
         try:
-            # Custom unpickler that handles missing modules gracefully
-            class SafeUnpickler(pickle.Unpickler):
-                def find_class(self, module, name):
-                    # If trying to import from surprise and it's not available, return a dummy class
-                    if module.startswith('surprise') and not SURPRISE_AVAILABLE:
-                        # Return a dummy class that can be instantiated but won't be used
-                        class DummySurpriseObject:
-                            def __init__(self, *args, **kwargs):
-                                pass
-                            def __getattr__(self, name):
-                                return None
-                        return DummySurpriseObject
-                    # Otherwise, use the standard import
-                    try:
-                        return super().find_class(module, name)
-                    except (ModuleNotFoundError, ImportError) as e:
-                        if 'surprise' in str(e).lower() or module.startswith('surprise'):
-                            # Return dummy object for surprise modules
-                            class DummySurpriseObject:
-                                def __init__(self, *args, **kwargs):
-                                    pass
-                                def __getattr__(self, name):
-                                    return None
-                            return DummySurpriseObject
-                        raise
-            
             with open(self.model_path, 'rb') as f:
                 # Try to load the pickle file
                 if SURPRISE_AVAILABLE:
                     # Standard loading if surprise is available
                     self.model_data = pickle.load(f)
                 else:
-                    # Use safe unpickler that handles missing surprise module
+                    # scikit-surprise not available - use monkey-patch to fake the module
                     print("[WARNING] scikit-surprise not available. Loading model with fallback support...")
-                    unpickler = SafeUnpickler(f)
+                    
+                    # Create fake surprise module to satisfy pickle's import requirements
+                    import types
+                    import sys
+                    
+                    # Create fake SVD class that handles all pickle operations
+                    class FakeSVD:
+                        def __init__(self, *args, **kwargs):
+                            self._dummy = True
+                            # Store any kwargs to avoid errors
+                            for k, v in kwargs.items():
+                                setattr(self, k, v)
+                        def __getattr__(self, name):
+                            # Return None for any missing attributes
+                            return None
+                        def __setattr__(self, name, value):
+                            # Allow setting any attributes
+                            object.__setattr__(self, name, value)
+                        def __setstate__(self, state):
+                            # Accept any state during unpickling
+                            if isinstance(state, dict):
+                                for k, v in state.items():
+                                    setattr(self, k, v)
+                        def __getstate__(self):
+                            # Return empty state
+                            return {}
+                        def __reduce__(self):
+                            return (FakeSVD, ())
+                        def __reduce_ex__(self, protocol):
+                            return (FakeSVD, ())
+                        def predict(self, *args, **kwargs):
+                            # Dummy predict method
+                            return type('Prediction', (), {'est': 3.5})()
+                        def fit(self, *args, **kwargs):
+                            # Dummy fit method
+                            return self
+                    
+                    # Create fake surprise module
+                    fake_surprise = types.ModuleType('surprise')
+                    fake_surprise.SVD = FakeSVD
+                    fake_surprise.Dataset = type('Dataset', (), {})
+                    fake_surprise.Reader = type('Reader', (), {})
+                    
+                    # Temporarily inject fake module
+                    original_surprise = sys.modules.get('surprise')
+                    sys.modules['surprise'] = fake_surprise
+                    
                     try:
-                        self.model_data = unpickler.load()
-                        print("[INFO] Model data loaded, but SVD predictions will be unavailable.")
+                        # Now try to load the pickle
+                        self.model_data = pickle.load(f)
+                        # Remove the fake SVD model
+                        if 'svd_model' in self.model_data:
+                            svd_model = self.model_data.get('svd_model')
+                            if svd_model is not None:
+                                self.model_data['svd_model'] = None
+                        print("[INFO] Model data loaded successfully (without SVD model).")
                         print("[INFO] Will use content-based + popularity fallback methods.")
                     except Exception as e:
-                        print(f"[ERROR] Failed to load model: {e}")
-                        # Try to set svd_model to None if it exists in the data
-                        # This is a fallback - the model might still be partially loaded
+                        # If loading still fails, provide helpful error
+                        error_str = str(e).lower()
+                        if 'surprise' in error_str or 'module' in error_str or 'no module named' in error_str:
+                            print(f"\n[ERROR] Model loading failed: {e}")
+                            print("\n[SOLUTION] Please install scikit-surprise:")
+                            print("  pip install scikit-surprise")
+                            print("\nIf installation fails on Linux, install build tools first:")
+                            print("  sudo apt-get update")
+                            print("  sudo apt-get install -y build-essential python3-dev gfortran libatlas-base-dev")
+                            print("  pip install scikit-surprise")
+                            print("\nNote: On most Linux systems, scikit-surprise installs automatically.")
+                            raise RuntimeError(
+                                "Model file requires scikit-surprise. Install with: pip install scikit-surprise"
+                            ) from e
                         raise
+                    finally:
+                        # Restore original module
+                        if original_surprise is not None:
+                            sys.modules['surprise'] = original_surprise
+                        elif 'surprise' in sys.modules and hasattr(sys.modules['surprise'], '_dummy'):
+                            del sys.modules['surprise']
                 
             # Try to load SVD model (or LightFM if available for backward compatibility)
             # If scikit-surprise isn't available, model will be None and we'll use fallbacks
