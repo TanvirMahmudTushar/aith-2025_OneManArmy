@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Pipeline Diagram Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: white;
+            font-family: Arial, sans-serif;
+        }
+        #diagram {
+            background: white;
+            padding: 20px;
+            display: inline-block;
+        }
+        .instructions {
+            background: #f0f0f0;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            max-width: 800px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <h3>📸 How to Save the Diagram:</h3>
+        <ol>
+            <li>Wait for the diagram to render below</li>
+            <li>Right-click on the diagram</li>
+            <li>Select "Save image as..." or "Copy image"</li>
+            <li>Save as: <strong>pipeline_diagram.png</strong></li>
+            <li>Save to: <strong>c:\Users\Tanvir Mahmud\MarriageChimeHackathon\</strong></li>
+        </ol>
+        <p><strong>Alternative:</strong> Use Windows Snipping Tool (Win+Shift+S) to capture just the diagram area and save it.</p>
+    </div>
+
+    <div id="diagram">
+        <pre class="mermaid">
+%%{init: {'theme':'base', 'themeVariables': { 'fontSize':'14px', 'fontFamily':'Segoe UI'}}}%%
+graph LR
+    %% Professional Color Palette
+    classDef dataNode fill:#2196F3,stroke:#1976D2,stroke-width:3px,color:#FFFFFF,font-weight:bold
+    classDef prepNode fill:#9C27B0,stroke:#7B1FA2,stroke-width:3px,color:#FFFFFF,font-weight:bold
+    classDef modelNode fill:#00BCD4,stroke:#0097A7,stroke-width:3px,color:#FFFFFF,font-weight:bold
+    classDef configNode fill:#FF9800,stroke:#F57C00,stroke-width:3px,color:#FFFFFF,font-weight:bold
+    classDef winnerNode fill:#4CAF50,stroke:#388E3C,stroke-width:4px,color:#FFFFFF,font-weight:bold
+    classDef evalNode fill:#FF5722,stroke:#E64A19,stroke-width:3px,color:#FFFFFF,font-weight:bold
+    classDef resultNode fill:#607D8B,stroke:#455A64,stroke-width:3px,color:#FFFFFF,font-weight:bold
+    classDef bestResult fill:#4CAF50,stroke:#388E3C,stroke-width:4px,color:#FFFFFF,font-weight:bold
+    
+    %% Pipeline Flow
+    A["📊 MovieLens Dataset<br/>100k ratings"]:::dataNode
+    B["🔧 Data Preprocessing<br/>Train-Test Split 80-20"]:::prepNode
+    C["🧠 SVD Algorithm<br/>Collaborative Filtering"]:::modelNode
+    
+    %% Hyperparameter Configurations
+    subgraph HP["⚙️ HYPERPARAMETER TUNING"]
+        direction TB
+        D1["Config A<br/>Factors: 50 | Epochs: 20<br/>Learning Rate: 0.005"]:::configNode
+        D2["🏆 Config B<br/>Factors: 100 | Epochs: 30<br/>Learning Rate: 0.005"]:::winnerNode
+        D3["Config C<br/>Factors: 150 | Epochs: 40<br/>Learning Rate: 0.01"]:::configNode
+    end
+    
+    %% Evaluation Stage
+    E["🎯 Model Evaluation<br/>Cross-Validation"]:::evalNode
+    
+    %% Performance Results
+    subgraph METRICS["📊 PERFORMANCE RESULTS"]
+        direction TB
+        F1["🏆 WINNER<br/>Recall@5: 0.3821<br/>RMSE: 0.8828"]:::bestResult
+        F2["Runner-up<br/>Recall@5: 0.3654<br/>RMSE: 0.9012"]:::resultNode
+        F3["Baseline<br/>Recall@5: 0.3512<br/>RMSE: 0.9234"]:::resultNode
+    end
+    
+    G["🚀 FINAL MODEL<br/>Deployed Configuration<br/>100 factors | 30 epochs"]:::winnerNode
+    
+    %% Flow Connections
+    A ==> B
+    B ==> C
+    C ==> HP
+    D1 --> E
+    D2 --> E
+    D3 --> E
+    E ==> METRICS
+    F1 -.->|Selected| G
+    
+    %% Subgraph Styling
+    style HP fill:#FFF3E0,stroke:#FF9800,stroke-width:3px,stroke-dasharray:5 5
+    style METRICS fill:#E8F5E9,stroke:#4CAF50,stroke-width:3px,stroke-dasharray:5 5
+        </pre>
+    </div>
+
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'base',
+            securityLevel: 'loose'
+        });
+    </script>
+</body>
+</html>

@@ -1,17 +1,21 @@
-# AITH 2025 - Required Dependencies
+# AITH 2025 - Movie Recommendation System
+# Team: OneManArmy
 # Python 3.8+
 # Use: pip install -r requirements.txt
 
 # Core Data Processing
-pandas==2.0.3
-numpy==1.24.3
+pandas>=2.0.0
+numpy>=1.24.0
 
-# Machine Learning
-scikit-learn==1.3.2
-scipy==1.11.4
+# Scientific Computing
+scipy>=1.11.0
+scikit-learn>=1.3.0
 
-# Collaborative Filtering (SVD)
-scikit-surprise==1.1.3
+# Recommendation System
+# Note: scikit-surprise requires C++ build tools on Windows
+# On Linux (judges' environment), it installs automatically
+# If unavailable, the code will use content-based + popularity fallback methods
+scikit-surprise>=1.1.4
 
 # Utilities
-tqdm==4.66.1
+tqdm>=4.66.0
